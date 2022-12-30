@@ -5,6 +5,9 @@ Date: 2022.12.30
 import pymysql
 import socket
 from my_arg import MY_SERVER_IP, MY_SERVER_PORT
+from _thread import *
+ThreadCount = 0
+
 
 def echo_str_back(conn):
     while True:  # 以下是信息传输过程，与前一个版本一致
@@ -63,6 +66,54 @@ def newly_sign_up(user_name,passwd):
         return ret
 
 
+def read_conn(conn):
+    for tup in conn_ls:
+        if tup[0] == conn:
+            return tup[1]
+
+
+def multi_threaded_client(conn):
+    ip_addr = read_conn(conn)
+    while True:  # 最外层循环用于登录
+        # 接收客户端传递的数据，只接收1024个字节数据
+        user_name = conn.recv(1024)  # 接收客户端输入的用户名
+        if user_name.decode('utf-8') == "sign up":
+            while True:  # 循环注册
+                user_name = conn.recv(1024)
+                passwd = conn.recv(1024)
+                # 将注册信息写入数据库，若写入出现了问题还得让客户再换个用户名
+                sign_up_ret = newly_sign_up(user_name.decode('utf-8'), passwd.decode('utf-8'))
+                conn.send(sign_up_ret.encode('utf-8'))
+                if sign_up_ret == "Account has already existed.":
+                    continue
+                else:
+                    # 将这个用户名和密码写入数据库后，不用再验证合法性，返回信息后直接登入
+                    ret = "Log in successfully"
+                    conn.send(ret.encode('utf-8'))  # 将合法性返回给客户，便于其知晓自己的登入状态
+                    if ret == "Log in successfully":  # 只有登入合法，才能继续进行信息接收操作
+                        print(f"Connection from {ip_addr}")  # 一个在server本端现实的连接信息
+                        echo_str_back(conn)  # 利用这个函数跟客户交互信息
+                    else:
+                        continue
+                    print(f"{ip_addr} disconnected.")
+                    break
+        else:
+            user_name = conn.recv(1024)
+            passwd = conn.recv(1024)  # 接收客户端输入的密码
+
+            ret = log_in_test(user_name.decode('utf-8'), passwd.decode('utf-8'))  # 用函数验证合法性
+            conn.send(ret.encode('utf-8'))  # 将合法性返回给客户，便于其知晓自己的登入状态
+            if ret == "Log in successfully":  # 只有登入合法，才能继续进行信息接收操作
+                print(f"Connection from {ip_addr}")  # 一个在server本端现实的连接信息
+                echo_str_back(conn)
+            else:
+                continue
+            print(f"{ip_addr} disconnected.")
+            break
+        break
+    # 关闭与客户端的连接
+    conn.close()
+
 
 # 创建套接字对象，AF_INET基于IPV4通信，SOCK_STREAM以数据流的形式传输数据，这里就可以确定是TCP了
 server = socket.socket(family=socket.AF_INET,type=socket.SOCK_STREAM)
@@ -77,48 +128,15 @@ server.listen(5)
 
 # 等待建立连接请求，会返回两个值，一个是连接状态，一个是连接的客户端IP与端口
 print("The server is waiting for connection...")
-conn,ip_addr = server.accept()
+conn_ls = []  # 我们借助这个列表来判定某个线程中处理的是哪一个port
+while True:
+    conn,ip_addr = server.accept()
+    conn_ls.append((conn,ip_addr))
 
-while True:  # 最外层循环用于登录
-    # 接收客户端传递的数据，只接收1024个字节数据
-    user_name = conn.recv(1024)  # 接收客户端输入的用户名
-    if user_name.decode('utf-8') == "sign up":
-        while True:  # 循环注册
-            user_name = conn.recv(1024)
-            passwd = conn.recv(1024)
-            # 将注册信息写入数据库，若写入出现了问题还得让客户再换个用户名
-            sign_up_ret = newly_sign_up(user_name.decode('utf-8'),passwd.decode('utf-8'))
-            conn.send(sign_up_ret.encode('utf-8'))
-            if sign_up_ret == "Account has already existed.":
-                continue
-            else:
-                # 将这个用户名和密码写入数据库后，不用再验证合法性，返回信息后直接登入
-                ret = "Log in successfully"
-                conn.send(ret.encode('utf-8'))  # 将合法性返回给客户，便于其知晓自己的登入状态
-                if ret == "Log in successfully":  # 只有登入合法，才能继续进行信息接收操作
-                    print(f"Connection form {ip_addr}")  # 一个在server本端现实的连接信息
-                    echo_str_back(conn)  # 利用这个函数跟客户交互信息
-                else:
-                    continue
-                print("Disconnected.")
-                break
-    else:
-        user_name = conn.recv(1024)
-        passwd = conn.recv(1024)    # 接收客户端输入的密码
+    start_new_thread(multi_threaded_client,(conn, ))
+    ThreadCount += 1
+    print("Current Thread Number: " + str(ThreadCount))
 
-        ret = log_in_test(user_name.decode('utf-8'),passwd.decode('utf-8'))  # 用函数验证合法性
-        conn.send(ret.encode('utf-8'))      # 将合法性返回给客户，便于其知晓自己的登入状态
-        if ret == "Log in successfully":    # 只有登入合法，才能继续进行信息接收操作
-            print(f"Connection form {ip_addr}")     # 一个在server本端现实的连接信息
-            echo_str_back(conn)
-        else:
-            continue
-        print("Disconnected.")
-        break
-    break
-
-# 关闭与客户端的连接
-conn.close()
 
 # 关闭套接字
 server.close()
