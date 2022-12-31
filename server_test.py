@@ -6,17 +6,28 @@ import pymysql
 import socket
 from my_arg import MY_SERVER_IP, MY_SERVER_PORT
 from _thread import *
+import struct
+
 ThreadCount = 0
 
 
 def echo_str_back(conn):
     while True:  # 以下是信息传输过程，与前一个版本一致
         # 接收客户端传递的数据，只接收1024个字节数据
-        res = conn.recv(1024)
+        header_received = conn.recv(4)  # 由于那个header就4字节，所以接收header也用4字节
+        data_len = struct.unpack('i',header_received)[0]  # 这一坨返回的是发送过来数据的长度
+        count = 0  # 设置个小计数器
+        res = b""
+        while count < data_len:
+            res += conn.recv(3)
+            count = len(res)
+
         if res.decode("utf-8") == 'bye':
             return
         # 将客户端的数据接收到以后，转换成大写再编码后发送给客户端
-        conn.send(res.decode('utf-8').upper().encode('utf-8'))
+        header_sent = struct.pack('i',len(res))  # 服务器端要发送的数据设置首部
+        conn.sendall(header_sent)  # 把这个首部发送过去
+        conn.sendall(res.decode('utf-8').upper().encode('utf-8'))
 
 
 def log_in_test(user_name,passwd):

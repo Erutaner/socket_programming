@@ -4,16 +4,26 @@ Date: 2022.12.30
 """
 import socket
 from my_arg import MY_SERVER_PORT, MY_SERVER_IP
+import struct
 
 def loop_str_sending(client):
     while True:
         inp = input('>>>：').strip()
+        # 将这个数据的长度转换为一个四字节的类型，存入header_sent
+        header_sent = struct.pack("i",len(inp.encode('utf-8')))
+        client.sendall(header_sent)   # 把这玩意作为数据首部发出去
         # 向服务端发送数据，需要转换成Bytes类型发送
-        client.send(inp.encode('utf-8'))
+        client.sendall(inp.encode('utf-8'))
         if inp == 'bye':
             return  # 双层循环唯一出口
-        # 接收服务端回应给客户端的数据，不能超过1024字节
-        res = client.recv(1024)
+        header_received = client.recv(4)  # 接收首部
+        data_len = struct.unpack('i', header_received)[0]  # 这一坨返回的是发送过来数据的长度
+        res = b""  # 这个用来接收数据
+        count = 0  # 设置一个小计数器
+        while count < data_len:
+            res += client.recv(3)
+            count = len(res)
+
         print(res.decode('utf-8'))
 
 
