@@ -7,6 +7,7 @@ import socket
 from my_arg import MY_SERVER_IP, MY_SERVER_PORT
 from _thread import *
 import struct
+import json
 
 ThreadCount = 0
 
@@ -30,6 +31,38 @@ def echo_str_back(conn):
         conn.sendall(res.decode('utf-8').upper().encode('utf-8'))
 
 
+def server_file_trans(conn):
+    # 接收数据首部的首部的信息
+    header_len_bytes = conn.recv(4)
+    # 取出首部长度
+    header_len = struct.unpack('i',header_len_bytes)[0]
+    # 根据这个长度接收首部
+    header_bytes = conn.recv(header_len)
+    # 将首部解码出来
+    header = json.loads(header_bytes.decode('utf-8'))
+    # 取出首部中的信息
+    file_received_name = header["file_name"]
+    file_received_size = header['file_size']
+    count = 0
+    file_data = b""
+    while count < file_received_size:
+        file_data += conn.recv(1020)
+        count = len(file_data)
+    print(f"File {file_received_name}: excepted {file_received_size} bytes, received {count} bytes.")
+    if file_received_size == count:
+        print("Received successfully.")
+    try:
+        new_file = open(".\\server_file\\"+file_received_name,'wb')
+        new_file.write(file_data)
+    except Exception as e:
+        print(e)
+    finally:
+        new_file.close()
+
+
+
+
+
 def log_in_test(user_name,passwd):
     # 创建连接对象
     sql_conn = pymysql.connect(host='localhost',port=3306,user='root',password='zj20030811'\
@@ -51,6 +84,7 @@ def log_in_test(user_name,passwd):
     cursor.close()
     sql_conn.close()
     return ret
+
 
 def newly_sign_up(user_name,passwd):
     # 创建连接对象
@@ -103,7 +137,8 @@ def multi_threaded_client(conn):
                     conn.send(ret.encode('utf-8'))  # 将合法性返回给客户，便于其知晓自己的登入状态
                     if ret == "Log in successfully":  # 只有登入合法，才能继续进行信息接收操作
                         print(f"Connection from {ip_addr}")  # 一个在server本端现实的连接信息
-                        echo_str_back(conn)  # 利用这个函数跟客户交互信息
+                        # echo_str_back(conn)  # 利用这个函数跟客户交互信息
+                        server_file_trans(conn)
                     else:
                         continue
                     print(f"{ip_addr} disconnected.")
@@ -116,7 +151,8 @@ def multi_threaded_client(conn):
             conn.send(ret.encode('utf-8'))  # 将合法性返回给客户，便于其知晓自己的登入状态
             if ret == "Log in successfully":  # 只有登入合法，才能继续进行信息接收操作
                 print(f"Connection from {ip_addr}")  # 一个在server本端现实的连接信息
-                echo_str_back(conn)
+                # echo_str_back(conn)
+                server_file_trans(conn)
             else:
                 continue
             print(f"{ip_addr} disconnected.")
@@ -124,6 +160,8 @@ def multi_threaded_client(conn):
         break
     # 关闭与客户端的连接
     conn.close()
+
+
 
 
 # 创建套接字对象，AF_INET基于IPV4通信，SOCK_STREAM以数据流的形式传输数据，这里就可以确定是TCP了
