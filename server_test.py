@@ -8,6 +8,7 @@ from my_arg import MY_SERVER_IP, MY_SERVER_PORT
 from _thread import *
 import struct
 import json
+from my_func import *
 
 ThreadCount = 0
 
@@ -32,33 +33,16 @@ def echo_str_back(conn):
 
 
 def server_file_trans(conn):
-    # 接收数据首部的首部的信息
-    header_len_bytes = conn.recv(4)
-    # 取出首部长度
-    header_len = struct.unpack('i',header_len_bytes)[0]
-    # 根据这个长度接收首部
-    header_bytes = conn.recv(header_len)
-    # 将首部解码出来
-    header = json.loads(header_bytes.decode('utf-8'))
-    # 取出首部中的信息
-    file_received_name = header["file_name"]
-    file_received_size = header['file_size']
-    count = 0
-    file_data = b""
-    while count < file_received_size:
-        file_data += conn.recv(1020)
-        count = len(file_data)
-    print(f"File {file_received_name}: excepted {file_received_size} bytes, received {count} bytes.")
-    if file_received_size == count:
-        print("Received successfully.")
-    try:
-        new_file = open(".\\server_file\\"+file_received_name,'wb')
-        new_file.write(file_data)
-    except Exception as e:
-        print(e)
-    finally:
-        new_file.close()
-
+    while True:
+        client_choice = conn.recv(1024).decode('utf-8')
+        if client_choice == 'u':
+            server_file_receiving(conn)
+        elif client_choice == 'd':
+            server_file_sending(conn)
+        elif client_choice == 'bye':
+            return
+        else:
+            continue
 
 
 

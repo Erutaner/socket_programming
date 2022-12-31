@@ -7,6 +7,7 @@ from my_arg import MY_SERVER_PORT, MY_SERVER_IP
 import struct
 import re
 import json
+from my_func import *
 
 def loop_str_sending(client):
 
@@ -30,34 +31,21 @@ def loop_str_sending(client):
         print(res.decode('utf-8'))
 
 
-def client_file_trans(client):
-    # 应当能实现手动输入路径与文件名后取文件
-    file_name = input("Please input the name of your file:").strip()
-    # file_type = re.findall(r'.[^./:*?"<>|]+$', file_name)[0]  # 使用正则表达式提取文件后缀
-    file_path = ".\\client_file\\" + file_name
-    try:
-        # 把待发送文件以二进制度方式打开
-        file_to_send = open(file_path,"rb")
-        # 读取文件中的内容
-        file_data = file_to_send.read()
-        # 自定义文件首部
-        file_header = {"file_size":len(file_data),"file_name":file_name}
-        # 将之序列化并转化为二进制
-        file_header_bytes = bytes(json.dumps(file_header),encoding = 'utf-8')
-        # 将这个首部打包并发送打包消息
-        header_bytes_len = struct.pack('i',len(file_header_bytes))
-        client.sendall(header_bytes_len)
-        # 将首部发送
-        client.sendall(file_header_bytes)
-        # 将数据发送
-        client.sendall(file_data)
-        print(f"{file_name} has been sent.")
 
-    except Exception as e:
-        print(e)
-    finally:
-        file_to_send.close()
-        return
+
+def client_file_trans(client):
+    while True:
+        my_choice = input("Please input your choice:u for upload, d for down load, bye for exit:")
+        client.sendall(my_choice.encode('utf-8'))
+        if my_choice == 'u':
+            client_file_sending(client)
+        elif my_choice == 'd':
+            client_file_receiving(client)
+        elif my_choice == 'bye':
+            return
+        else:
+            print("Invalid choice, please choose again.")
+
 
 # 创建套接字对象，AF_INET基于IPV4通信，SOCK_STREAM以数据流的形式传输数据，这里就可以确定是TCP了
 client = socket.socket(family=socket.AF_INET,type=socket.SOCK_STREAM)
